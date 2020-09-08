@@ -1,4 +1,4 @@
-% EXIT function for a convolutional code used as an inner code
+% EXIT function for a soft-input soft-output demodulator
 % Copyright (C) 2008  Robert G. Maunder
 
 % This program is free software: you can redistribute it and/or modify it 
@@ -22,31 +22,10 @@ bit_count=100000;
 IA_count=11;
 
 % Channel SNR in dB
-SNR = -4;
+SNR = 0;
 
 % Noise variance
 N0 = 1/10^(SNR/10);
-
-% Generate some random bits
-uncoded_bits  = round(rand(1,bit_count));
-
-% Encode using a half-rate systematic recursive convolutional code having a single memory element
-[encoded1_bits, encoded2_bits] = convolutional_encoder(uncoded_bits);
-
-% BPSK modulator
-tx1 = -2*(encoded1_bits-0.5);
-tx2 = -2*(encoded2_bits-0.5);
-
-% Send the two BPSK signals one at a time over an AWGN channel
-rx1 = tx1 + sqrt(N0/2)*(randn(1,length(tx1))+1i*randn(1,length(tx1)));
-rx2 = tx2 + sqrt(N0/2)*(randn(1,length(tx2))+1i*randn(1,length(tx2)));
-
-% BPSK demodulator
-apriori_encoded1_llrs = (abs(rx1+1).^2-abs(rx1-1).^2)/N0;
-apriori_encoded2_llrs = (abs(rx2+1).^2-abs(rx2-1).^2)/N0;
-
-% Plot the LLR histograms
-display_llr_histograms([apriori_encoded1_llrs,apriori_encoded2_llrs],[encoded1_bits,encoded2_bits]);
 
 % A priori mutual informations to consider
 IA = 0.999*(0:1/(IA_count-1):1);
@@ -59,18 +38,31 @@ area=0.0;
 % Consider each a priori mutual information
 for IA_index = 1:IA_count
 
+    % Generate some random bits
+    bits  = round(rand(1,bit_count));
+
+    % Encode using a half-rate systematic recursive convolutional code having a single memory element
+    tx = modulate(bits);
+
+    % Rayleigh fading 
+    h = sqrt(1/2)*(randn(size(tx))+1i*randn(size(tx)));
+
+    % Noise
+    n = sqrt(N0/2)*(randn(size(tx))+1i*randn(size(tx)));
+
+    % Uncorrelated narrowband Rayleigh fading channel
+    rx = h.*tx + n;
+
+
     % Generate the a priori LLRs having the a priori mutual information considered
-    apriori_uncoded_llrs = generate_llrs(uncoded_bits, IA(IA_index));
+    apriori_llrs = generate_llrs(bits, IA(IA_index));
   
     % Do the BCJR
-    [aposteriori_uncoded_llrs, aposteriori_encoded1_llrs, aposteriori_encoded2_llrs] = bcjr_decoder(apriori_uncoded_llrs, apriori_encoded1_llrs, apriori_encoded2_llrs);
-
-    % Calculate the new information
-    extrinsic_uncoded_llrs = aposteriori_uncoded_llrs-apriori_uncoded_llrs;
+    extrinsic_llrs = soft_demodulate(rx, h, N0, apriori_llrs);
 
     % Measure the mutual information of the extrinsic LLRs
-    IE_hist(IA_index) = measure_mutual_information_histogram(extrinsic_uncoded_llrs, uncoded_bits);
-    IE_av(IA_index) = measure_mutual_information_averaging(extrinsic_uncoded_llrs);
+    IE_hist(IA_index) = measure_mutual_information_histogram(extrinsic_llrs, bits);
+    IE_av(IA_index) = measure_mutual_information_averaging(extrinsic_llrs);
 
     % Update the area beneath the EXIT function
     if(IA_index > 1)
