@@ -53,10 +53,9 @@ for snr_index = 1:length(snr)
     if strcmp(channel, 'AWGN')
         CCMC_capacity(snr_index)=log2(1+Gamma);
     elseif strcmp(channel, 'Rayleigh')
-        E = 0.5772157;
-        if Gamma > 2
-            CCMC_capacity(snr_index) = log2(exp(1)) * exp(-1/Gamma) * (-E + log(Gamma) + 1/Gamma); %eq 9 from https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=130999
-        end
+        % Refer to the following paper for CCMC capacity of Rayleigh fading
+        % channel
+        % https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=130999
     else
         error('Unsupported channel');
     end
